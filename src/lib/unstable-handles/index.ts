@@ -1,0 +1,30 @@
+export { TRPCEntryError } from "#lib/unstable-handles/entry-error.js";
+export type {
+  AnyTRPCEntry,
+  AnyTRPCHandle,
+  inferInfiniteQueryHandle,
+  inferQueryHandle,
+  TRPCEntryKind,
+  TRPCEntryOptions,
+  TRPCEntryResult,
+  TRPCInfiniteEntryOptions,
+  TRPCInfiniteQueryEntry,
+  TRPCInfiniteQueryHandle,
+  TRPCLoadedHandles,
+  TRPCLoadEntries,
+  TRPCQueryEntry,
+  TRPCQueryHandle,
+  TRPCSettledHandles,
+} from "#lib/unstable-handles/handles.js";
+export {
+  ensureEntry,
+  ensureInfiniteEntry,
+  fetchEntry,
+  fetchInfiniteEntry,
+  fromHandle,
+  isTRPCEntryError,
+  loadHandles,
+  loadHandlesSettled,
+  prefetchEntry,
+  prefetchInfiniteEntry,
+} from "#lib/unstable-handles/handles.js";

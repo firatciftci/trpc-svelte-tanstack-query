@@ -1,0 +1,119 @@
+{
+  "name": "trpc-svelte-tanstack-query",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "TanStack Svelte Query integration for tRPC: type-safe query, mutation, and subscription options for Svelte 5 and SvelteKit",
+  "author": "Firat Ciftci <2052855+firatciftci@users.noreply.github.com>",
+  "homepage": "https://github.com/firatciftci/trpc-svelte-tanstack-query",
+  "bugs": {
+    "url": "https://github.com/firatciftci/trpc-svelte-tanstack-query/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/firatciftci/trpc-svelte-tanstack-query.git"
+  },
+  "keywords": [
+    "trpc",
+    "tanstack",
+    "tanstack-query",
+    "svelte-query",
+    "svelte",
+    "sveltekit",
+    "runes",
+    "typescript"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "imports": {
+    "#lib/*": "./src/lib/*",
+    "#demo/*": "./src/demo/*",
+    "#tests/*": "./tests/*"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./unstable-handles": {
+      "types": "./dist/unstable-handles/index.d.ts",
+      "svelte": "./dist/unstable-handles/index.js",
+      "default": "./dist/unstable-handles/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "svelte": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite dev",
+    "build": "svelte-kit sync && svelte-package && publint --strict && attw --pack --profile esm-only",
+    "prepare": "svelte-kit sync || echo ''",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "lint": "knip && eslint .",
+    "lint:fix": "knip --fix && eslint --fix .",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "release": "bumpp"
+  },
+  "peerDependencies": {
+    "@tanstack/svelte-query": "^6.3.11",
+    "@trpc/client": "^11.28.0",
+    "@trpc/server": "^11.28.0",
+    "svelte": "^5.25.0",
+    "typescript": ">=5.7.2"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^10.0.0",
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@playwright/test": "1.65.0",
+    "@sveltejs/adapter-node": "^6.0.2",
+    "@sveltejs/kit": "^3.2.0",
+    "@sveltejs/package": "^3.0.2",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tanstack/svelte-query": "^6.4.1",
+    "@trpc/client": "^11.28.0",
+    "@trpc/server": "^11.28.0",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "@vitest/browser-playwright": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "bumpp": "^12.3.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-erasable-syntax-only": "^0.7.2",
+    "eslint-plugin-slop": "^0.1.3",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "eslint-plugin-svelte": "^3.24.1",
+    "eventsource": "^5.1.5",
+    "knip": "^6.45.1",
+    "oxfmt": "^0.78.0",
+    "playwright": "1.65.0",
+    "publint": "^0.3.25",
+    "superjson": "^2.2.6",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.8",
+    "svelte-eslint-parser": "^1.10.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0",
+    "vitest-browser-svelte": "^3.1.0",
+    "ws": "^8.23.0",
+    "zod": "^4.6.7"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "dependencies": {
+    "esm-env": "^1.2.2"
+  }
+}
