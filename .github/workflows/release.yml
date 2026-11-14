@@ -5,10 +5,20 @@ on:
     tags:
       - "v*"
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/trpc-svelte-tanstack-query
     permissions:
       contents: write
       id-token: write

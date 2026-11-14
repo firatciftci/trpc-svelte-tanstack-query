@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":maintainLockFilesWeekly",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "minimumReleaseAge": "1 day",
+  "postUpdateOptions": ["pnpmDedupe"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    { "matchDepTypes": ["peerDependencies"], "enabled": false },
+    { "matchDepTypes": ["devDependencies"], "rangeStrategy": "bump" },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dev dependencies (non-major)",
+      "automerge": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "GitHub Actions (non-major)",
+      "automerge": true
+    },
+    { "matchUpdateTypes": ["lockFileMaintenance"], "automerge": true }
+  ]
+}

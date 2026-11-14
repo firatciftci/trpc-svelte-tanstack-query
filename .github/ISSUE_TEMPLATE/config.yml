@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: tRPC questions and discussions
+    url: https://github.com/trpc/trpc/discussions
+    about: For questions about tRPC itself, use the tRPC discussions
+  - name: TanStack Query questions and discussions
+    url: https://github.com/TanStack/query/discussions
+    about: For questions about TanStack Query itself, use the TanStack Query discussions

@@ -1,0 +1,41 @@
+name: Bug report
+description: Something doesn't work the way the docs say
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for reporting a bug. A small reproduction gets it fixed much faster. If it's a security problem, report it privately instead: https://github.com/firatciftci/trpc-svelte-tanstack-query/security/advisories/new"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Include any error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: A link to a repository or StackBlitz project, or the smallest code that shows the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: Run `npm ls trpc-svelte-tanstack-query @tanstack/svelte-query @trpc/client @trpc/server svelte @sveltejs/kit` and paste the output.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: react
+    attributes:
+      label: Does it work with `@trpc/tanstack-react-query`?
+      description: If you know whether the React package behaves the same way, it helps tell a port bug from an upstream one.
+      options:
+        - Yes, React behaves correctly
+        - No, React has the same problem
+        - I don't know
+      default: 2
+    validations:
+      required: true
