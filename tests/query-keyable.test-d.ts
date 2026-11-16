@@ -8,13 +8,14 @@ import { z } from "zod";
 import type {
   AnyTRPCQueryKey,
   SetTRPCContextOptions,
+  TRPCKeys,
   TRPCMutationKeyWithoutPrefix,
   TRPCMutationKeyWithPrefix,
   TRPCOptionsProxy,
   TRPCQueryKeyWithoutPrefix,
   TRPCQueryKeyWithPrefix,
 } from "#lib/index.js";
-import { createTRPCContext } from "#lib/index.js";
+import { createTRPCContext, createTRPCKeys } from "#lib/index.js";
 
 const t = initTRPC.create({
   errorFormatter(formatter) {
@@ -29,6 +30,12 @@ const _appRouter = t.router({
         .input(z.object({ id: z.string() }))
         .query(() => "__result" as const),
       create: t.procedure.mutation(() => "__mutationResult" as const),
+      list: t.procedure
+        .input(z.object({ cursor: z.number().nullish() }))
+        .query(() => ({ items: [] as Array<string> })),
+      onCreate: t.procedure.subscription(async function* () {
+        yield "__event" as const;
+      }),
     }),
   },
 });
@@ -146,5 +153,49 @@ describe("setTRPCContext options", () => {
     expectTypeOf(plain.useTRPCClient).returns.toEqualTypeOf<
       typeof _trpcClient
     >();
+  });
+});
+
+describe("createTRPCKeys types", () => {
+  const keys = createTRPCKeys<AppRouter>();
+
+  test("keys and filters match the options proxy", () => {
+    expectTypeOf(keys).toEqualTypeOf<TRPCKeys<AppRouter>>();
+    expectTypeOf(keys.bluesky.post.byId.queryKey).toEqualTypeOf<
+      typeof trpc.bluesky.post.byId.queryKey
+    >();
+    expectTypeOf(keys.bluesky.post.byId.queryFilter).toEqualTypeOf<
+      typeof trpc.bluesky.post.byId.queryFilter
+    >();
+    expectTypeOf(keys.bluesky.post.list.infiniteQueryKey).toEqualTypeOf<
+      typeof trpc.bluesky.post.list.infiniteQueryKey
+    >();
+    expectTypeOf(keys.bluesky.post.create.mutationKey).toEqualTypeOf<
+      typeof trpc.bluesky.post.create.mutationKey
+    >();
+    expectTypeOf(keys.bluesky.pathFilter).toEqualTypeOf<
+      typeof trpc.bluesky.pathFilter
+    >();
+  });
+
+  test("leaves out options and subscriptions", () => {
+    expectTypeOf(keys.bluesky.post.byId).not.toHaveProperty("queryOptions");
+    expectTypeOf(keys.bluesky.post.create).not.toHaveProperty(
+      "mutationOptions",
+    );
+    expectTypeOf(keys.bluesky.post).not.toHaveProperty("onCreate");
+  });
+
+  test("keyPrefix follows the feature flag", () => {
+    const prefixedKeys = createTRPCKeys<AppRouter, { keyPrefix: true }>({
+      keyPrefix: "user",
+    });
+    expectTypeOf(prefixedKeys.bluesky.post.byId.queryKey).toEqualTypeOf<
+      typeof prefixed.bluesky.post.byId.queryKey
+    >();
+    // @ts-expect-error a prefixed router needs the keyPrefix
+    createTRPCKeys<AppRouter, { keyPrefix: true }>();
+    // @ts-expect-error keyPrefix needs the feature flag
+    createTRPCKeys<AppRouter>({ keyPrefix: "user" });
   });
 });

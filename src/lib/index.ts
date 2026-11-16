@@ -7,15 +7,20 @@ export type {
   DecorateInfiniteQueryProcedure,
   DecorateMutationProcedure,
   DecorateProcedure,
+  DecorateProcedureKeys,
   DecorateQueryProcedure,
   DecorateRouterKeyable,
   DecorateSubscriptionProcedure,
   inferInput,
   inferOutput,
+  TRPCKeys,
   TRPCOptionsProxy,
   TRPCOptionsProxyOptions,
 } from "#lib/internals/create-options-proxy.js";
-export { createTRPCOptionsProxy } from "#lib/internals/create-options-proxy.js";
+export {
+  createTRPCKeys,
+  createTRPCOptionsProxy,
+} from "#lib/internals/create-options-proxy.js";
 export { createSubscription } from "#lib/internals/create-subscription.svelte.js";
 export { dehydrateUnsent } from "#lib/internals/hydration.js";
 export type { TRPCInfiniteQueryOptions } from "#lib/internals/infinite-query-options.js";

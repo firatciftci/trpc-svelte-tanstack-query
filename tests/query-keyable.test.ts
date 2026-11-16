@@ -1,6 +1,7 @@
 import { initTRPC } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { createTRPCKeys } from "#lib/index.js";
 import { createServerResource } from "#tests/helpers/server.js";
 
 function testContext(opts?: { keyPrefix?: string }) {
@@ -207,4 +208,45 @@ it("keys of a prefixed and an unprefixed proxy", async () => {
     expect(ctx.optionsProxyClient.q.pathKey()).toEqual([["q"]]);
     expect(ctx.optionsProxyClient.m.mutationKey()).toEqual([["m"]]);
   }
+});
+
+describe("createTRPCKeys", () => {
+  it("builds the same keys and filters as the options proxy", async () => {
+    await using ctx = testContext();
+    const trpc = ctx.optionsProxyClient;
+    const keys = createTRPCKeys<typeof ctx.router>();
+    const isMatch = () => true;
+
+    expect(keys.pathKey()).toEqual(trpc.pathKey());
+    expect(keys.bluesky.pathFilter({ stale: true })).toEqual(
+      trpc.bluesky.pathFilter({ stale: true }),
+    );
+    expect(keys.bluesky.post.byId.queryKey({ id: "1" })).toEqual(
+      trpc.bluesky.post.byId.queryKey({ id: "1" }),
+    );
+    expect(
+      keys.bluesky.post.byId.queryFilter({ id: "1" }, { predicate: isMatch }),
+    ).toEqual(
+      trpc.bluesky.post.byId.queryFilter({ id: "1" }, { predicate: isMatch }),
+    );
+    expect(keys.bluesky.post.create.mutationKey()).toEqual(
+      trpc.bluesky.post.create.mutationKey(),
+    );
+  });
+
+  it("builds prefixed keys", async () => {
+    await using ctx = testContext({ keyPrefix: "user-123" });
+    const trpc = ctx.optionsProxyClient;
+    const keys = createTRPCKeys<typeof ctx.router, { keyPrefix: true }>({
+      keyPrefix: "user-123",
+    });
+
+    expect(keys.bluesky.post.byId.queryKey({ id: "1" })).toEqual(
+      trpc.bluesky.post.byId.queryKey({ id: "1" }),
+    );
+    expect(keys.bluesky.post.create.mutationKey()).toEqual([
+      ["user-123"],
+      ["bluesky", "post", "create"],
+    ]);
+  });
 });

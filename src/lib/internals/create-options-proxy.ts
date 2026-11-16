@@ -228,6 +228,18 @@ export type DecorateProcedure<
       ? DecorateSubscriptionProcedure<TDef>
       : never;
 
+type ProcedureDef<
+  TRoot extends AnyTRPCRootTypes,
+  TProcedure extends AnyTRPCProcedure,
+  TFeatureFlags extends FeatureFlags,
+> = {
+  input: inferProcedureInput<TProcedure>;
+  output: inferTransformedProcedureOutput<TRoot, TProcedure>;
+  transformer: TRoot["transformer"];
+  errorShape: inferProcedureErrorShape<TRoot, TProcedure>;
+  featureFlags: TFeatureFlags;
+};
+
 export type DecoratedRouterRecord<
   TRoot extends AnyTRPCRootTypes,
   TRecord extends TRPCRouterRecord,
@@ -240,17 +252,70 @@ export type DecoratedRouterRecord<
       : $Value extends AnyTRPCProcedure
         ? DecorateProcedure<
             $Value["_def"]["type"],
-            {
-              input: inferProcedureInput<$Value>;
-              output: inferTransformedProcedureOutput<TRoot, $Value>;
-              transformer: TRoot["transformer"];
-              errorShape: inferProcedureErrorShape<TRoot, $Value>;
-              featureFlags: TFeatureFlags;
-            }
+            ProcedureDef<TRoot, $Value, TFeatureFlags>
           >
         : never
     : never;
 };
+
+/**
+The key and filter helpers for a procedure of the given type.
+*/
+export type DecorateProcedureKeys<
+  TType extends TRPCProcedureType,
+  TDef extends ResolverDef,
+> = TType extends "query"
+  ? Pick<
+      DecorateQueryProcedure<TDef>,
+      "~types" | "pathKey" | "pathFilter" | "queryKey" | "queryFilter"
+    > &
+      (TDef["input"] extends OptionalCursorInput
+        ? Pick<
+            DecorateInfiniteQueryProcedure<TDef>,
+            "infiniteQueryKey" | "infiniteQueryFilter"
+          >
+        : unknown)
+  : TType extends "mutation"
+    ? Pick<DecorateMutationProcedure<TDef>, "~types" | "mutationKey">
+    : never;
+
+type DecoratedKeysRecord<
+  TRoot extends AnyTRPCRootTypes,
+  TRecord extends TRPCRouterRecord,
+  TFeatureFlags extends FeatureFlags,
+> = {
+  [
+    TKey in keyof TRecord as TRecord[TKey] extends {
+      _def: { type: "subscription" };
+    }
+      ? never
+      : TKey
+  ]: TRecord[TKey] extends infer $Value
+    ? $Value extends TRPCRouterRecord
+      ? DecoratedKeysRecord<TRoot, $Value, TFeatureFlags> &
+          DecorateRouterKeyable<TFeatureFlags>
+      : $Value extends AnyTRPCProcedure
+        ? DecorateProcedureKeys<
+            $Value["_def"]["type"],
+            ProcedureDef<TRoot, $Value, TFeatureFlags>
+          >
+        : never
+    : never;
+};
+
+/**
+The object returned by `createTRPCKeys`: the key and filter helpers of the options proxy, for every query and mutation
+in your router.
+*/
+export type TRPCKeys<
+  TRouter extends AnyTRPCRouter,
+  TFeatureFlags extends FeatureFlags = DefaultFeatureFlags,
+> = DecoratedKeysRecord<
+  TRouter["_def"]["_config"]["$types"],
+  TRouter["_def"]["record"],
+  TFeatureFlags
+> &
+  DecorateRouterKeyable<TFeatureFlags>;
 
 /**
 The object returned by `useTRPC()` and `createTRPCOptionsProxy`. It mirrors your router and has query, mutation,
@@ -321,20 +386,63 @@ export type TRPCOptionsProxyOptions<
     | TRPCOptionsProxyOptionsExternal<TRouter>
   );
 
-type UtilsMethods =
+type KeyMethods =
   | "~types"
-  | "~queryClient"
   | "pathKey"
   | "pathFilter"
-  | "queryOptions"
   | "queryKey"
   | "queryFilter"
-  | "infiniteQueryOptions"
   | "infiniteQueryKey"
   | "infiniteQueryFilter"
+  | "mutationKey";
+
+type UtilsMethods =
+  | KeyMethods
+  | "~queryClient"
+  | "queryOptions"
+  | "infiniteQueryOptions"
   | "mutationOptions"
-  | "mutationKey"
   | "subscriptionOptions";
+
+function keyHelpers(opts: {
+  path: Array<string>;
+  prefix: string | undefined;
+  arg1: unknown;
+  arg2: unknown;
+}): Record<KeyMethods, () => unknown> {
+  const { path, prefix, arg1, arg2 } = opts;
+  return {
+    "~types": () => {},
+    pathKey: () => getQueryKeyInternal({ path, type: "any", prefix }),
+    pathFilter: (): QueryFilters => ({
+      ...(arg1 as QueryFilters | undefined),
+      queryKey: getQueryKeyInternal({ path, type: "any", prefix }),
+    }),
+    queryKey: () =>
+      getQueryKeyInternal({ path, input: arg1, type: "query", prefix }),
+    queryFilter: (): QueryFilters => ({
+      ...(arg2 as QueryFilters | undefined),
+      queryKey: getQueryKeyInternal({
+        path,
+        input: arg1,
+        type: "query",
+        prefix,
+      }),
+    }),
+    infiniteQueryKey: () =>
+      getQueryKeyInternal({ path, input: arg1, type: "infinite", prefix }),
+    infiniteQueryFilter: (): QueryFilters => ({
+      ...(arg2 as QueryFilters | undefined),
+      queryKey: getQueryKeyInternal({
+        path,
+        input: arg1,
+        type: "infinite",
+        prefix,
+      }),
+    }),
+    mutationKey: () => getMutationKeyInternal({ path, prefix }),
+  };
+}
 
 type UntypedClient = TRPCUntypedClient<AnyTRPCRouter>;
 
@@ -413,14 +521,8 @@ export function createOptionsProxy<TRouter extends AnyTRPCRouter>(
     const [arg1, arg2] = args as [never, never];
 
     const contextMap: Record<UtilsMethods, () => unknown> = {
-      "~types": () => {},
+      ...keyHelpers({ path, prefix, arg1, arg2 }),
       "~queryClient": () => unwrapLazyArg(opts.queryClient),
-
-      pathKey: () => getQueryKeyInternal({ path, type: "any", prefix }),
-      pathFilter: (): QueryFilters => ({
-        ...(arg1 as QueryFilters | undefined),
-        queryKey: getQueryKeyInternal({ path, type: "any", prefix }),
-      }),
 
       queryOptions: () =>
         trpcQueryOptions({
@@ -436,17 +538,6 @@ export function createOptionsProxy<TRouter extends AnyTRPCRouter>(
           }),
           query: callIt("query"),
         }),
-      queryKey: () =>
-        getQueryKeyInternal({ path, input: arg1, type: "query", prefix }),
-      queryFilter: (): QueryFilters => ({
-        ...(arg2 as QueryFilters | undefined),
-        queryKey: getQueryKeyInternal({
-          path,
-          input: arg1,
-          type: "query",
-          prefix,
-        }),
-      }),
 
       infiniteQueryOptions: () =>
         trpcInfiniteQueryOptions({
@@ -461,17 +552,6 @@ export function createOptionsProxy<TRouter extends AnyTRPCRouter>(
           }),
           query: callIt("query"),
         }),
-      infiniteQueryKey: () =>
-        getQueryKeyInternal({ path, input: arg1, type: "infinite", prefix }),
-      infiniteQueryFilter: (): QueryFilters => ({
-        ...(arg2 as QueryFilters | undefined),
-        queryKey: getQueryKeyInternal({
-          path,
-          input: arg1,
-          type: "infinite",
-          prefix,
-        }),
-      }),
 
       mutationOptions: () =>
         trpcMutationOptions({
@@ -482,7 +562,6 @@ export function createOptionsProxy<TRouter extends AnyTRPCRouter>(
           mutate: callIt("mutation"),
           overrides: opts.overrides?.mutations,
         }),
-      mutationKey: () => getMutationKeyInternal({ path, prefix }),
 
       subscriptionOptions: () =>
         trpcSubscriptionOptions({
@@ -501,4 +580,35 @@ export function createOptionsProxy<TRouter extends AnyTRPCRouter>(
 
     return contextMap[utilName]();
   });
+}
+
+/**
+Creates the key and filter helpers of the options proxy without a tRPC client or `QueryClient`. Use it where
+`useTRPC()` isn't available and no client is needed, such as module-level stores and invalidation helpers. Pass the
+same `keyPrefix` as the options proxy, and the keys match.
+
+@example
+```ts
+export const trpcKeys = createTRPCKeys<AppRouter>();
+
+await queryClient.invalidateQueries(trpcKeys.post.pathFilter());
+```
+*/
+export function createTRPCKeys<
+  TRouter extends AnyTRPCRouter,
+  TFeatureFlags extends FeatureFlags = DefaultFeatureFlags,
+>(
+  ...args: TFeatureFlags["keyPrefix"] extends true
+    ? [opts: KeyPrefixOptions<TFeatureFlags>]
+    : [opts?: KeyPrefixOptions<TFeatureFlags>]
+): TRPCKeys<TRouter, TFeatureFlags> {
+  const prefix: string | undefined = args[0]?.keyPrefix;
+  return createTRPCRecursiveProxy<TRPCKeys<TRouter, TFeatureFlags>>(
+    ({ args: callArgs, path: proxyPath }) => {
+      const path = [...proxyPath];
+      const utilName = path.pop() as KeyMethods;
+      const [arg1, arg2] = callArgs;
+      return keyHelpers({ path, prefix, arg1, arg2 })[utilName]();
+    },
+  );
 }
