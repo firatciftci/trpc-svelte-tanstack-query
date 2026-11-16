@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({
     const [handles] = await loadHandles(trpc, {
       post: ensureEntry(trpc.post.byId, { id: params.id }),
       viewer: prefetchEntry(trpc.viewer),
+      slow: prefetchEntry(trpc.slow),
       comments: prefetchInfiniteEntry(trpc.post.comments, {
         postId: params.id,
       }),

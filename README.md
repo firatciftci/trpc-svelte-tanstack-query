@@ -282,6 +282,22 @@ queryClient.setQueryData(
 
 Keys carry their data type, so `getQueryData` and `setQueryData` are typed too. Inputs to `queryKey` and `queryFilter` are partial, so `trpc.post.byId.queryFilter()` matches every `byId` query.
 
+`useTRPC()` only works while a component initializes. To build keys anywhere else, such as in a module-level store or an invalidation helper, use `createTRPCKeys`. It has the same key and filter helpers, and it needs neither a tRPC client nor a `QueryClient`:
+
+```ts
+// src/lib/trpc-keys.ts
+import { createTRPCKeys } from "trpc-svelte-tanstack-query";
+import type { AppRouter } from "$lib/server/router";
+
+export const trpcKeys = createTRPCKeys<AppRouter>();
+```
+
+```ts
+await queryClient.invalidateQueries(trpcKeys.post.pathFilter());
+```
+
+It has every helper above that returns a key or a filter, for every query and mutation. It leaves out subscriptions. With the `keyPrefix` feature flag, pass the same prefix as the context: `createTRPCKeys<BillingRouter, { keyPrefix: true }>({ keyPrefix: "billing" })`.
+
 ### Subscriptions
 
 ```svelte
@@ -513,7 +529,7 @@ Server-rendered data goes through SvelteKit's serializer, which already handles 
 
 ## Handles (experimental)
 
-`trpc-svelte-tanstack-query/unstable-handles` is a port of tRPC's experimental handles. `loadHandles` starts several queries at once in a `load` function and returns small, serializable handles that you pass to components, which read them with `fromHandle`:
+`trpc-svelte-tanstack-query/unstable-handles` is a port of tRPC's experimental [handles](https://trpc.io/docs/client/tanstack-react-query/handles). `loadHandles` starts several queries at once in a `load` function and returns small, serializable handles that you pass to components, which read them with `fromHandle`:
 
 ```ts
 // src/routes/posts/[id]/+page.server.ts
@@ -553,7 +569,101 @@ export const load = async ({ locals: { queryClient, trpc }, params }) => {
 </script>
 ```
 
-`prefetchEntry`, `fetchEntry`, and `ensureEntry` match the `QueryClient` methods they're named after, and each has an infinite query version. `loadHandlesSettled` returns errors as values instead of rejecting. This API may change in any release, as it can in tRPC.
+`prefetchEntry`, `fetchEntry`, and `ensureEntry` match the `QueryClient` methods they're named after, and each has an infinite query version. `loadHandlesSettled` returns errors as values instead of rejecting. tRPC's handles guide covers when to use each, and that applies here too. This API may change in any release, as it can in tRPC.
+
+### Where to load handles
+
+| `load` function                 | Proxy                                                                                   | What happens                                                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Server load (`+page.server.ts`) | `locals.trpc`                                                                           | Return `dehydrateUnsent(queryClient)` with the handles and render inside `HydrationBoundary`. Prefetch entries that are still loading stream to the browser. |
+| Universal load (`+page.ts`)     | `createTRPCOptionsProxy` with SvelteKit's `fetch` and the `QueryClient` from `parent()` | The load runs again in the browser while the page hydrates. SvelteKit's `fetch` answers it from the responses inlined in the page.                           |
+
+```ts
+// src/routes/posts/[id]/+page.ts
+import { createTRPCOptionsProxy } from "trpc-svelte-tanstack-query";
+import {
+  ensureEntry,
+  loadHandles,
+} from "trpc-svelte-tanstack-query/unstable-handles";
+import { createClient } from "$lib/trpc";
+
+export const load = async ({ fetch, parent, params }) => {
+  const { queryClient } = await parent();
+  const trpc = createTRPCOptionsProxy({
+    client: createClient(fetch),
+    queryClient,
+  });
+  const [handles] = await loadHandles(trpc, {
+    post: ensureEntry(trpc.post.byId, { id: params.id }),
+  });
+  return { handles };
+};
+```
+
+React apps without loaders start handles from event handlers, such as when the pointer enters a link. SvelteKit does that for you: with `data-sveltekit-preload-data`, it runs the `load` function when the user hovers over a link, so the handles start loading before the click.
+
+On the server, render the page with the `QueryClient` from your root `+layout.ts`, not with `locals.queryClient`. The server then renders from the same dehydrated state the browser starts with. A prefetch entry that is still loading renders as loading on both sides, so hydration matches.
+
+### Typing props
+
+Export the proxy's type once, next to `createTRPCContext`:
+
+```ts
+// src/lib/trpc.ts
+import type { TRPCOptionsProxy } from "trpc-svelte-tanstack-query";
+import type { AppRouter } from "$lib/server/router";
+
+export type TRPC = TRPCOptionsProxy<AppRouter>;
+```
+
+Then type each handle prop with `inferQueryHandle`, or `inferInfiniteQueryHandle` for an infinite query. The component then works on any page that loads that query:
+
+```svelte
+<!-- src/lib/components/post.svelte -->
+<script lang="ts">
+  import { createQuery } from "@tanstack/svelte-query";
+  import { fromHandle, type inferQueryHandle } from "trpc-svelte-tanstack-query/unstable-handles";
+  import { type TRPC, useTRPC } from "$lib/trpc";
+
+  let { post }: { post: inferQueryHandle<TRPC["post"]["byId"]> } = $props();
+
+  const trpc = useTRPC();
+  const query = createQuery(() => fromHandle(trpc, post));
+</script>
+```
+
+Read the handle inside the function you pass to `createQuery`. When SvelteKit navigates to another post, it keeps the component and passes it a new handle, and the query follows.
+
+### Changing the input in a component
+
+To let the user change part of the input, such as a search term the URL doesn't hold, start from the handle's input. Use a `$derived` and assign to it, instead of `$state`:
+
+```svelte
+<script lang="ts">
+  import { createInfiniteQuery } from "@tanstack/svelte-query";
+  import type { inferInfiniteQueryHandle } from "trpc-svelte-tanstack-query/unstable-handles";
+  import { type TRPC, useTRPC } from "$lib/trpc";
+
+  let { comments }: { comments: inferInfiniteQueryHandle<TRPC["post"]["comments"]> } = $props();
+
+  const trpc = useTRPC();
+  let term = $derived(comments.input.term);
+  const query = createInfiniteQuery(() =>
+    trpc.post.comments.infiniteQueryOptions(
+      { ...comments.input, term },
+      { getNextPageParam: (page) => page.nextCursor },
+    ),
+  );
+</script>
+
+<input bind:value={term} />
+```
+
+SvelteKit keeps the component when only the params change, so `$state` set from a handle would keep the previous post's term. The `$derived` resets whenever a new handle arrives. While `term` matches the handle's input, the query reads the cache entry the `load` function filled.
+
+### Waterfalls across layouts
+
+Layout and page `load` functions run in parallel unless one of them calls `await parent()`. A page `load` that waits for its layout's data before loading handles makes the same waterfall as a second `loadHandles` call. Start the page's queries from `params` and `url` where you can. When a layout and a page both load handles in server `load` functions, `dehydrateUnsent` sends each query only once.
 
 ## API reference
 
@@ -566,6 +676,7 @@ export const load = async ({ locals: { queryClient, trpc }, params }) => {
 | `useTRPC()`                                                | Returns the options proxy from context.                                                                                                                                                                      |
 | `useTRPCClient()`                                          | Returns the tRPC client from context.                                                                                                                                                                        |
 | `createTRPCOptionsProxy(options)`                          | Builds the options proxy without context. Pass `{ client, queryClient }` to call through a tRPC client, or `{ router, ctx, queryClient }` to call a router directly. Also takes `keyPrefix` and `overrides`. |
+| `createTRPCKeys<TRouter, TFeatureFlags?>(options?)`        | Builds the key and filter helpers without a tRPC client or `QueryClient`, for code outside components. Takes `keyPrefix`.                                                                                    |
 | `createSubscription(() => options)`                        | Runs a subscription for the lifetime of the calling component and returns its reactive state.                                                                                                                |
 | `dehydrateUnsent(queryClient)`                             | Dehydrates the queries and mutations that earlier calls haven't sent yet.                                                                                                                                    |
 
@@ -618,13 +729,14 @@ const trpc = createTRPCOptionsProxy<AppRouter>({
 | `fromHandle(trpc, handle, options?)`                                 | Turns a handle back into query options for `createQuery`, or for `createInfiniteQuery` when you pass `getNextPageParam` in the options. |
 | `isTRPCEntryError(error, procedure?)`                                | Checks whether an error came from an entry, optionally from a given procedure, and narrows its type.                                    |
 
-Every type is exported too, including `TRPCOptionsProxy`, `TRPCQueryKey`, `TRPCSubscriptionResult`, and the `Decorate*` helper types.
+Every type is exported too, including `TRPCOptionsProxy`, `TRPCKeys`, `TRPCQueryKey`, `TRPCSubscriptionResult`, and the `Decorate*` helper types.
 
 ## Coming from React
 
 If you know `@trpc/tanstack-react-query`, these are the differences:
 
 - `createTRPCContext` returns `setTRPCContext`, `useTRPC`, and `useTRPCClient`. Svelte has no provider components for this, so you call `setTRPCContext` during component initialization.
+- `createTRPCKeys` is new. It builds keys and filters without a client, for code that runs outside components, where `useTRPC()` isn't available.
 - `useSubscription` is `createSubscription`, and it takes a function that returns the options, like `createQuery`. Turning `enabled` off resets the subscription to `idle`.
 - `unstable_createHydrateClient` is replaced by `dehydrateUnsent` and Svelte Query's `HydrationBoundary`, which work with SvelteKit `load` functions.
 - There are no suspense variants, because Svelte Query has none.

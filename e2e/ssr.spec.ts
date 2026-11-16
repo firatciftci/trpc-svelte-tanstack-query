@@ -36,7 +36,9 @@ test.describe("universal load", () => {
     const urls = trackTRPCRequests(page);
     await page.goto("/");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("link", { name: "Universal load" }).click();
+    await page
+      .getByRole("link", { name: "Universal load", exact: true })
+      .click();
     await expect(page.getByTestId("greeting")).toHaveText(
       "Hello, universal at 1970-01-01T00:00:00.000Z",
     );
@@ -109,6 +111,41 @@ test.describe("unstable handles", () => {
   test("maps a NOT_FOUND entry to a 404", async ({ request }) => {
     const response = await request.get("/handles/missing");
     expect(response.status()).toBe(404);
+  });
+
+  test("server renders a slow prefetch entry as loading and streams it in without a refetch", async ({
+    page,
+    request,
+  }) => {
+    const response = await request.get("/handles/1");
+    expect(await response.text()).toContain("loading slow");
+
+    const urls = trackTRPCRequests(page);
+    await page.goto("/handles/1");
+    await expect(page.getByTestId("slow")).toHaveText(
+      "slow done at 1970-01-01T00:00:00.000Z",
+    );
+    await page.waitForLoadState("networkidle");
+    expect(urls).toEqual([]);
+  });
+
+  test("loads handles in a universal load and hydrates without requests", async ({
+    page,
+    request,
+  }) => {
+    const response = await request.get("/handles-universal/1");
+    const html = await response.text();
+    expect(html).toContain("Post 1");
+    expect(html).not.toContain("loading slow");
+
+    const urls = trackTRPCRequests(page);
+    await page.goto("/handles-universal/1");
+    await expect(page.getByTestId("post")).toHaveText("Post 1");
+    await expect(page.getByTestId("viewer")).toHaveText("KATT");
+    await expect(page.getByTestId("comments")).toHaveText("0,1");
+    await page.waitForLoadState("networkidle");
+    expect(urls).toEqual([]);
+    await expect(page.getByTestId("slow")).toHaveCount(0);
   });
 });
 

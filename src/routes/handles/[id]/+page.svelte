@@ -1,7 +1,7 @@
 <script lang="ts">
+  import HandlesView from "#demo/handles-view.svelte";
   import { HydrationBoundary } from "@tanstack/svelte-query";
   import type { PageData } from "./$types";
-  import HandlesView from "./handles-view.svelte";
 
   const { data }: { data: PageData } = $props();
 </script>
