@@ -112,7 +112,7 @@
     "ws": "^8.23.0",
     "zod": "^4.6.7"
   },
-  "packageManager": "pnpm@12.18.0",
+  "packageManager": "pnpm@12.21.0",
   "dependencies": {
     "esm-env": "^1.2.2"
   }
